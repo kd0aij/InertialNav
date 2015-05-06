@@ -177,7 +177,7 @@ public:
 
     float innovMag[3]; // innovation output
     float varInnovMag[3]; // innovation variance output
-    Vector3f magData; // magnetometer flux radings in X,Y,Z body axes
+    Vector3f magData; // magnetometer flux readings in X,Y,Z body axes
     float flowRadXYcomp[2]; // motion compensated optical flow angular rates(rad/sec)
     float flowRadXY[2]; // raw (non motion compensated) optical flow angular rates (rad/sec)
     float innovVtas; // innovation output

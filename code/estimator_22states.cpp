@@ -363,10 +363,11 @@ void AttPosEKF::UpdateStrapdownEquationsNED()
 
     // transform body delta velocities to delta velocities in the nav frame
     // * and + operators have been overloaded
-    delVelNav = Tbn*dVelIMU + gravityNED*dtIMU;
-//    delVelNav.x = Tbn.x.x*dVelIMURel.x + Tbn.x.y*dVelIMURel.y + Tbn.x.z*dVelIMURel.z + gravityNED.x*dtIMU;
-//    delVelNav.y = Tbn.y.x*dVelIMURel.x + Tbn.y.y*dVelIMURel.y + Tbn.y.z*dVelIMURel.z + gravityNED.y*dtIMU;
-//    delVelNav.z = Tbn.z.x*dVelIMURel.x + Tbn.z.y*dVelIMURel.y + Tbn.z.z*dVelIMURel.z + gravityNED.z*dtIMU;
+//    delVelNav = Tbn*dVelIMU + gravityNED*dtIMU;
+//    delVelNav = Tbn*dVelIMURel + gravityNED*dtIMU;
+    delVelNav.x = Tbn.x.x*dVelIMURel.x + Tbn.x.y*dVelIMURel.y + Tbn.x.z*dVelIMURel.z + gravityNED.x*dtIMU;
+    delVelNav.y = Tbn.y.x*dVelIMURel.x + Tbn.y.y*dVelIMURel.y + Tbn.y.z*dVelIMURel.z + gravityNED.y*dtIMU;
+    delVelNav.z = Tbn.z.x*dVelIMURel.x + Tbn.z.y*dVelIMURel.y + Tbn.z.z*dVelIMURel.z + gravityNED.z*dtIMU;
 
     // calculate the magnitude of the nav acceleration (required for GPS
     // variance estimation)
@@ -388,7 +389,7 @@ void AttPosEKF::UpdateStrapdownEquationsNED()
     states[5] = states[5] + delVelNav.y;
     states[6] = states[6] + delVelNav.z;
 
-    // If calculating postions, do a trapezoidal integration for position
+    // If calculating positions, do a trapezoidal integration for position
     states[7] = states[7] + 0.5f*(states[4] + lastVelocity[0])*dtIMU;
     states[8] = states[8] + 0.5f*(states[5] + lastVelocity[1])*dtIMU;
     states[9] = states[9] + 0.5f*(states[6] + lastVelocity[2])*dtIMU;
@@ -1242,6 +1243,8 @@ void AttPosEKF::FuseVelposNED()
 
                     gpsPosGlitchOffsetNE.x += posInnov[0];
                     gpsPosGlitchOffsetNE.y += posInnov[1];
+
+                    printf("glitch detected: offset (%e, %e)\n", gpsPosGlitchOffsetNE.x, gpsPosGlitchOffsetNE.y);
 
                     // limit the radius of the offset and decay the offset to zero radially
                     decayGpsOffset();
@@ -2607,6 +2610,7 @@ void AttPosEKF::quat2eul(float (&y)[3], const float (&u)[4])
 void AttPosEKF::setOnGround(const bool isLanded)
 {
     _onGround = isLanded;
+    printf("setOnGround: %d\n", _onGround);
 
     if (staticMode) {
         staticMode = (!refSet || (GPSstatus < GPS_FIX_3D));

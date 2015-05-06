@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
                 // store the predicted states for subsequent use by measurement fusion
                 _ekf->StoreStates(IMUmsec);
                 // Check if on ground - status is used by covariance prediction
-                bool onground = (((AttPosEKF::sq(_ekf->velNED[0]) + AttPosEKF::sq(_ekf->velNED[1]) + AttPosEKF::sq(_ekf->velNED[2])) < 4.0f) && (_ekf->VtasMeas < 8.0f));
+                bool onground = (((AttPosEKF::sq(_ekf->velNED[0]) + AttPosEKF::sq(_ekf->velNED[1]) + AttPosEKF::sq(_ekf->velNED[2])) < 1.0f)); // && (_ekf->VtasMeas < 8.0f));
 
                 _ekf->setOnGround(onground);
                 // sum delta angles and time used by covariance prediction
@@ -499,6 +499,14 @@ int main(int argc, char *argv[])
 
                     }
 
+//                    if ((IMUmsec > (msecStartTime + 100000)) && (IMUmsec < (msecStartTime + 103000))) {
+//                    }
+                    if ((IMUmsec > (msecStartTime + 100000)) && (IMUmsec < (msecStartTime + 101000))) {
+                        printf("glitch inserted: velNED: (%e, %e)\n", _ekf->velNED[0], _ekf->velNED[1]);
+                        _ekf->velNED[0] += 50;
+						printf("glitch inserted: posNED: (%e, %e)\n", posNED[0], posNED[1]);
+						posNED[0] += 100;
+                    }
                     _ekf->posNE[0] = posNED[0];
                     _ekf->posNE[1] = posNED[1];
                      // set fusion flags
