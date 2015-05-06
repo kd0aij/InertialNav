@@ -142,6 +142,7 @@ FILE * pGpsFile = nullptr;
 FILE * pAhrsFile = nullptr;
 FILE * pAdsFile = nullptr;
 FILE * pStateOutFile = nullptr;
+FILE * pGlitchOutFile = nullptr;
 FILE * pEulOutFile = nullptr;
 FILE * pCovOutFile = nullptr;
 FILE * pRefPosVelOutFile = nullptr;
@@ -212,6 +213,7 @@ int main(int argc, char *argv[])
     pAhrsFile = open_with_exit ("ATT.txt","r");
     pAdsFile = open_with_exit ("NTUN.txt","r");
     pTimeFile = open_with_exit ("timing.txt","r");
+    pGlitchOutFile = open_with_exit ("GlitchOffsetOut.txt","w");
     pStateOutFile = open_with_exit ("StateDataOut.txt","w");
     pEulOutFile = open_with_exit ("EulDataOut.txt","w");
     pCovOutFile = open_with_exit ("CovDataOut.txt","w");
@@ -357,7 +359,7 @@ int main(int argc, char *argv[])
                 // store the predicted states for subsequent use by measurement fusion
                 _ekf->StoreStates(IMUmsec);
                 // Check if on ground - status is used by covariance prediction
-                bool onground = (((AttPosEKF::sq(_ekf->velNED[0]) + AttPosEKF::sq(_ekf->velNED[1]) + AttPosEKF::sq(_ekf->velNED[2])) < 4.0f) && (_ekf->VtasMeas < 8.0f));
+                bool onground = (((AttPosEKF::sq(_ekf->velNED[0]) + AttPosEKF::sq(_ekf->velNED[1]) + AttPosEKF::sq(_ekf->velNED[2])) < 1.0f)); // && (_ekf->VtasMeas < 8.0f));
 
                 _ekf->setOnGround(onground);
                 // sum delta angles and time used by covariance prediction
@@ -476,6 +478,9 @@ int main(int argc, char *argv[])
                 // Fuse GPS Measurements
                 if (newDataGps)
                 {
+                    // calculate a position offset which is applied to NE position and velocity wherever it is used throughout code to allow GPS position jumps to be accommodated gradually
+                    _ekf->decayGpsOffset();
+
                     // Convert GPS measurements to Pos NE, hgt and Vel NED
                     if (pGpsRawINFile != nullptr)
                     {
@@ -494,6 +499,14 @@ int main(int argc, char *argv[])
 
                     }
 
+//                    if ((IMUmsec > (msecStartTime + 100000)) && (IMUmsec < (msecStartTime + 103000))) {
+//                    }
+                    if ((IMUmsec > (msecStartTime + 100000)) && (IMUmsec < (msecStartTime + 101000))) {
+                        printf("glitch inserted: velNED: (%e, %e)\n", _ekf->velNED[0], _ekf->velNED[1]);
+                        _ekf->velNED[0] += 50;
+						printf("glitch inserted: posNED: (%e, %e)\n", posNED[0], posNED[1]);
+						posNED[0] += 100;
+                    }
                     _ekf->posNE[0] = posNED[0];
                     _ekf->posNE[1] = posNED[1];
                      // set fusion flags
@@ -504,6 +517,7 @@ int main(int argc, char *argv[])
                     _ekf->RecallStates(_ekf->statesAtPosTime, (IMUmsec - msecPosDelay));
                     // run the fusion step
                     _ekf->FuseVelposNED();
+                    printf("FuseVelposNED at time = %e \n", IMUtimestamp);
                 }
                 else
                 {
@@ -555,7 +569,7 @@ int main(int argc, char *argv[])
                 _ekf->RecallStates(_ekf->statesAtHgtTime, (IMUmsec - msecHgtDelay));
                 // run the fusion step
                 _ekf->FuseVelposNED();
-                printf("time = %e \n", IMUtimestamp);
+//                printf("time = %e \n", IMUtimestamp);
             }
             else
             {
@@ -673,7 +687,10 @@ int main(int argc, char *argv[])
 
                 // debug output
                 //printf("Euler Angle Difference = %3.1f , %3.1f , %3.1f deg\n", rad2deg*eulerDif[0],rad2deg*eulerDif[1],rad2deg*eulerDif[2]);
-                WriteFilterOutput();
+                if ((IMUmsec >= msecStartTime) && (IMUmsec <= msecEndTime))
+                {
+                	WriteFilterOutput();
+                }
 
             }
 
@@ -1081,6 +1098,13 @@ void WriteFilterOutput()
     for (uint8_t j=0; j<4; j++) tempQuat[j] = _ekf->states[j];
     _ekf->quat2eul(eulerEst, tempQuat);
 
+    // GPS glitch offset
+    fprintf(pGlitchOutFile," %e", float(IMUmsec*0.001f));
+    fprintf(pGlitchOutFile," %e %e %e", _ekf->velNED[0], _ekf->velNED[1], _ekf->velNED[2]);
+    fprintf(pGlitchOutFile," %e %e %e", _ekf->posNE[0], _ekf->posNE[1], _ekf->posNE[2]);
+    fprintf(pGlitchOutFile," %e %e", _ekf->gpsPosGlitchOffsetNE.x, _ekf->gpsPosGlitchOffsetNE.y);
+    fprintf(pGlitchOutFile," %e %e\n", _ekf->gpsVelGlitchOffset.x, _ekf->gpsVelGlitchOffset.y);
+
     // filter states
     fprintf(pStateOutFile," %e", float(IMUmsec*0.001f));
     for (uint8_t i=0; i < n_states; i++)
@@ -1188,6 +1212,9 @@ void readTimingData()
     msecMagDelay  = timeArray[6];
     msecTasDelay  = timeArray[7];
     _ekf->EAS2TAS       = timeArray[8];
+
+    printf("msecVelDelay %d\nmsecPosDelay %d\nmsecHgtDelay %d\nmsecMagDelay %d\nmsecTasDelay %d\n",
+    		msecVelDelay, msecPosDelay, msecHgtDelay, msecMagDelay, msecTasDelay);
 }
 
 void CloseFiles()
